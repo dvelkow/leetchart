@@ -7,43 +7,80 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(data => {
             chartData = data;
             drawChart();
-            fetchSummaryStatistics();
+            updateLatestPrice();
+            updateBalance();
         });
 
     function drawChart() {
-        const labels = chartData.map(data => data.Date);
-        const values = chartData.map(data => data.Close);
-
         const ctx = document.getElementById('chart').getContext('2d');
         if (chart) {
             chart.destroy();
         }
 
+        const formattedData = chartData.map(d => ({
+            x: new Date(d.Date),
+            o: parseFloat(d.Open),
+            h: parseFloat(d.High),
+            l: parseFloat(d.Low),
+            c: parseFloat(d.Close)
+        }));
+
+        const minPrice = Math.min(...formattedData.map(d => d.l));
+        const maxPrice = Math.max(...formattedData.map(d => d.h));
+        const padding = (maxPrice - minPrice) * 0.1;
+
         chart = new Chart(ctx, {
-            type: 'line',
+            type: 'candlestick',
             data: {
-                labels: labels,
                 datasets: [{
-                    label: 'Closing Prices',
-                    data: values,
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    borderWidth: 1,
-                    fill: false
+                    label: 'BTC/USD',
+                    data: formattedData
                 }]
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 scales: {
                     x: {
-                        title: {
-                            display: true,
-                            text: 'Date'
+                        type: 'time',
+                        time: {
+                            unit: 'day',
+                            displayFormats: {
+                                day: 'MMM d'
+                            }
+                        },
+                        ticks: {
+                            source: 'data'
                         }
                     },
                     y: {
-                        title: {
-                            display: true,
-                            text: 'Price'
+                        position: 'right',
+                        min: minPrice - padding,
+                        max: maxPrice + padding,
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value.toLocaleString();
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                const point = context.raw;
+                                return [
+                                    'Open: $' + point.o.toLocaleString(),
+                                    'High: $' + point.h.toLocaleString(),
+                                    'Low: $' + point.l.toLocaleString(),
+                                    'Close: $' + point.c.toLocaleString()
+                                ];
+                            }
                         }
                     }
                 }
@@ -51,27 +88,38 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    function fetchSummaryStatistics() {
-        fetch('/summary_statistics')
+    function updateLatestPrice() {
+        const latestData = chartData[chartData.length - 1];
+        document.getElementById('latest-price').textContent = `$${parseFloat(latestData.Close).toLocaleString()}`;
+    }
+
+    function updateBalance() {
+        fetch('/get_balance')
             .then(response => response.json())
             .then(data => {
-                document.getElementById('summary').innerText = `
-                    Total Entries: ${data.total_entries}, 
-                    Max Close: ${data.max_close}, 
-                    Min Close: ${data.min_close}, 
-                    Average Close: ${data.average_close.toFixed(2)},
-                    Latest Date: ${data.latest_date},
-                    Earliest Date: ${data.earliest_date}
-                `;
+                document.getElementById('balance').textContent = `$${data.balance.toLocaleString()}`;
             });
     }
+
+    document.getElementById('chart').addEventListener('click', function(event) {
+        const rect = event.target.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        
+        const xValue = chart.scales.x.getValueForPixel(x);
+        const yValue = chart.scales.y.getValueForPixel(y);
+        
+        const entryIndex = chartData.findIndex(d => new Date(d.Date) >= xValue);
+        document.getElementById('entry_index').value = entryIndex;
+        document.getElementById('entry_price').value = yValue.toFixed(2);
+    });
 
     document.getElementById('evaluateButton').addEventListener('click', function () {
         const positionType = document.getElementById('position_type').value;
         const entryIndex = parseInt(document.getElementById('entry_index').value, 10);
         const stopLevel = parseFloat(document.getElementById('stop_level').value);
         const takeProfitLevel = parseFloat(document.getElementById('take_profit_level').value);
-        const stake = parseFloat(document.getElementById('stake').value);
+        const betAmount = parseFloat(document.getElementById('bet_amount').value);
 
         fetch('/evaluate_position', {
             method: 'POST',
@@ -83,62 +131,31 @@ document.addEventListener('DOMContentLoaded', function () {
                 entry_index: entryIndex,
                 stop_level: stopLevel,
                 take_profit_level: takeProfitLevel,
-                stake: stake
+                bet_amount: betAmount
             })
         })
-            .then(response => {
-                if (!response.ok) {
-                    return response.json().then(err => { throw new Error(err.error); });
-                }
-                return response.json();
-            })
-            .then(data => {
-                const result = data.result;
-                document.getElementById('result').innerText = `Result: ${result}`;
-                if (result === 0) {
-                    document.getElementById('result').innerText += ' (No action taken)';
-                }
-                document.getElementById('error').innerText = '';  // Clear previous errors
-            })
-            .catch(err => {
-                document.getElementById('result').innerText = '';
-                document.getElementById('error').innerText = `Error: ${err.message}`;
-            });
-    });
-
-    document.getElementById('lastEntriesButton').addEventListener('click', function () {
-        const n = parseInt(document.getElementById('lastEntriesCount').value, 10);
-        fetch(`/last_entries/${n}`)
-            .then(response => {
-                if (!response.ok) {
-                    return response.json().then(err => { throw new Error(err.error); });
-                }
-                return response.json();
-            })
-            .then(data => {
-                document.getElementById('lastEntriesResult').innerText = `Last ${n} Entries: ${JSON.stringify(data, null, 2)}`;
-            })
-            .catch(err => {
-                document.getElementById('error').innerText = `Error: ${err.message}`;
-            });
-    });
-
-    document.getElementById('averagePriceButton').addEventListener('click', function () {
-        const startIndex = parseInt(document.getElementById('averageStartIndex').value, 10);
-        const endIndex = parseInt(document.getElementById('averageEndIndex').value, 10);
-        fetch(`/average_price/${startIndex}/${endIndex}`)
-            .then(response => {
-                if (!response.ok) {
-                    return response.json().then(err => { throw new Error(err.error); });
-                }
-                return response.json();
-            })
-            .then(data => {
-                document.getElementById('averagePriceResult').innerText = `Average Price: ${data.average_price}`;
-            })
-            .catch(err => {
-                document.getElementById('averagePriceResult').innerText = '';
-                document.getElementById('error').innerText = `Error: ${err.message}`;
-            });
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => { throw new Error(err.error); });
+            }
+            return response.json();
+        })
+        .then(data => {
+            let resultText = `Result: ${data.result}\n`;
+            resultText += `Entry Price: $${parseFloat(data.entry_price).toLocaleString()}\n`;
+            if (data.exit_price) {
+                resultText += `Exit Price: $${parseFloat(data.exit_price).toLocaleString()}\n`;
+                resultText += `Percentage Change: ${data.percentage_change.toFixed(2)}%\n`;
+                resultText += `Profit/Loss: $${data.profit_loss.toFixed(2)}\n`;
+                resultText += `New Balance: $${data.new_balance.toLocaleString()}`;
+            }
+            document.getElementById('result').innerText = resultText;
+            document.getElementById('error').innerText = '';
+            updateBalance();
+        })
+        .catch(err => {
+            document.getElementById('result').innerText = '';
+            document.getElementById('error').innerText = `Error: ${err.message}`;
+        });
     });
 });

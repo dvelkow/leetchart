@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeetChart - Bitcoin Trading Simulator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial/dist/chartjs-chart-financial.min.js"></script>
+</head>
+<body>
+    <header>
+        <h1>LeetChart</h1>
+        <div id="price-display">
+            BTC/USD: <span id="latest-price"></span>
+        </div>
+        <div id="balance-display">
+            Balance: <span id="balance"></span>
+        </div>
+    </header>
+
+    <main>
+        <div class="chart-container">
+            <canvas id="chart"></canvas>
+        </div>
+        
+        <div id="trading-interface">
+            <h2>Trading Interface</h2>
+            <div class="input-group">
+                <label for="position_type">Position Type:</label>
+                <select id="position_type">
+                    <option value="long">Long</option>
+                    <option value="short">Short</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label for="entry_index">Entry Index:</label>
+                <input type="number" id="entry_index" placeholder="Entry Index">
+            </div>
+            <div class="input-group">
+                <label for="entry_price">Entry Price:</label>
+                <input type="number" id="entry_price" placeholder="Entry Price" readonly>
+            </div>
+            <div class="input-group">
+                <label for="stop_level">Stop Level:</label>
+                <input type="number" id="stop_level" placeholder="Stop Level">
+            </div>
+            <div class="input-group">
+                <label for="take_profit_level">Take Profit Level:</label>
+                <input type="number" id="take_profit_level" placeholder="Take Profit Level">
+            </div>
+            <div class="input-group">
+                <label for="bet_amount">Bet Amount ($):</label>
+                <input type="number" id="bet_amount" placeholder="Bet Amount">
+            </div>
+            <button id="evaluateButton">Evaluate Position</button>
+        </div>
+        
+        <div id="result"></div>
+        <div id="error"></div>
+    </main>
+
+    <footer>
+        <p>&copy; 2023 LeetChart. All rights reserved.</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
